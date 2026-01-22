@@ -43,5 +43,3 @@ The code is organized as follows:
 ## Dependencies
 
 This code uses the `generain` package, available at: [github/chloesrcb/generain](https://github.com/chloesrcb/generain)
-
-To install it, please refer to the installation instructions provided in the corresponding repository.
