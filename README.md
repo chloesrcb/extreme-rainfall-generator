@@ -17,7 +17,7 @@ This repository implements a spatio-temporal stochastic model for urban rainfall
 The methodology combines:
 
 - **EGPD marginal distributions** for modeling extreme rainfall intensities  
-- A **flexible extremal dependence structure** based on **r-Pareto processes**
+- A flexible extremal dependence structure based on **r-Pareto processes**
 - Explicit **advection incorporation** to account for storm displacement
 
 The model is calibrated on high spatio-temporal resolution data from the Montpellier **OMSEV** precipitation network and also the **COMEPHORE** reanalysis provided by Météo-France.
