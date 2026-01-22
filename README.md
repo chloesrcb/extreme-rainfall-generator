@@ -20,7 +20,7 @@ The methodology combines:
 - A **flexible extremal dependence structure** based on **r-Pareto processes**
 - Explicit **advection incorporation** to account for storm displacement
 
-The model is calibrated on high spatio-temporal resolution data from the Montpellier **OMSEV** precipitation network and also the **COMEPHORE** from Météo France.
+The model is calibrated on high spatio-temporal resolution data from the Montpellier **OMSEV** precipitation network and also the **COMEPHORE** reanalysis provided by Météo-France.
 
 ## Repository Structure
 
