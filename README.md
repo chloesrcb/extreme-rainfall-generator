@@ -14,11 +14,11 @@ This repository contains the code associated with the paper:
 ## Overview
 
 This repository implements a spatio-temporal stochastic model for urban rainfall extremes in Montpellier.  
-The methodology combines:
+The model used combines:
 
-- **EGPD marginal distributions** for modeling extreme rainfall intensities  
+- **EGPD marginals** for modeling extreme rainfall intensities  
 - A flexible extremal dependence structure based on **r-Pareto processes**
-- Explicit **advection incorporation** to account for storm displacement
+-  **Advection** incorporation to account for rain storm displacement
 
 The model is calibrated on high spatio-temporal resolution data from the Montpellier **OMSEV** precipitation network and also the **COMEPHORE** reanalysis provided by Météo-France.
 
