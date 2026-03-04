@@ -6,6 +6,8 @@ This repository contains the code associated with the paper:
 > **Spatio-temporal modeling of urban extreme rainfall events at high resolution**  
 > Serre-Combe, Meyer, Opitz, and Toulemonde
 
+DOI: [10.48550/arXiv.2602.19774](10.48550/arXiv.2602.19774)
+
 <p align="center">
   <img src="./images/simulations/simulated_episode_1.gif" width="300"><br>
   <em>Simulated extreme rainfall episode using the proposed spatio-temporal model.</em>
