@@ -1,3 +1,9 @@
+# remove objects from the environment
+rm(list = ls())
+
+# clear console
+cat("\014")
+
 library(data.table)
 library(latex2exp)
 library(lubridate)
@@ -15,6 +21,17 @@ ncores <- detectCores() - 1
 #                          "omsev/omsev_5min/rain_mtp_5min_2019_2024.RData")
 
 # load(filename_omsev)
+# rain <- rain.all5
+# head(rain.all5)
+# rain <- rain[rain$CUM_5 == TRUE,]
+# head(rain)
+# rain <- rain[, -which(colnames(rain) %in% c("CUM_5", "memoNA", "QTtemp", "CUMUL", "NA_count_by_CUM5" ))]
+# Get all files in the folder "R"
+functions_folder <- "../../../generain/R"
+files <- list.files(functions_folder, full.names = TRUE)
+# load all functions in files
+invisible(lapply(files, function(f) source(f, echo = FALSE)))
+library(latex2exp)
 
 filename_loc <- paste0(data_folder,
                            "omsev/loc_rain_gauges.csv")
@@ -26,9 +43,10 @@ location_gauges$Station <- c("iem", "mse", "poly", "um", "cefe", "cnrs",
                              "cines", "brives", "hydro")
 
 # get rain data
-filename_rain <- paste0(data_folder, "omsev/omsev_5min/rain_mtp_5min_2019_2024_cleaned.csv")
+filename_rain <- paste0(data_folder, "omsev/omsev_5min/rain_mtp_5min_2019_2024.csv")
 rain_omsev <- read.csv(filename_rain)
-head(rain_omsev)
+tail(rain_omsev)
+
 # put dates as rownames
 rownames(rain_omsev) <- rain_omsev$dates
 rain <- rain_omsev[-1] # remove dates column
@@ -42,6 +60,10 @@ rain <- rain[, !(colnames(rain) %in% c("cines", "hydro", "brives"))]
 location_gauges <- location_gauges[location_gauges$Station != "cines" &
                                    location_gauges$Station != "hydro" &
                                    location_gauges$Station != "brives" , ]
+
+# reorder location_gauges according to rain columns
+location_gauges <- location_gauges[match(colnames(rain), location_gauges$Station), ]
+                        
 dist_mat <- get_dist_mat(location_gauges)
 df_dist <- reshape_distances(dist_mat)
 
@@ -54,15 +76,16 @@ sites_coords_sf <- st_as_sf(sites_coords, coords = c("Longitude", "Latitude"),
                             crs = 4326)
 sites_coords_sf <- st_transform(sites_coords_sf, crs = 2154)
 coords_m <- st_coordinates(sites_coords_sf)
-grid_coords_km <- as.data.frame(coords_m / 1000)
-colnames(grid_coords_km) <- c("Longitude", "Latitude")
-rownames(grid_coords_km) <- rownames(sites_coords)
+grid_coords_m <- as.data.frame(coords_m)
+colnames(grid_coords_m) <- c("Longitude", "Latitude")
+rownames(grid_coords_m) <- rownames(sites_coords)
 
 
 ################################################################################
 # VARIOGRAM --------------------------------------------------------------------
 ################################################################################
 
+q <- 0.95
 # in rain remove when all data are NA
 set_st_excess <- get_spatiotemp_excess(rain, quantile = q, remove_zeros = TRUE)
 
@@ -72,7 +95,8 @@ list_s <- set_st_excess$list_s
 list_t <- set_st_excess$list_t
 list_u <- set_st_excess$list_u
 
-
+min_spatial_dist <- 1200 # in m
+delta <- 12 # in number of time steps (5 minutes each)
 # Spatio-temporal neighborhood parameters
 s0t0_set <- get_s0t0_pairs(grid_coords_m, rain,
                             min_spatial_dist = min_spatial_dist,
@@ -142,20 +166,20 @@ adv_filename <- paste(data_folder, "/omsev/adv_estim/combined_comephore_omsev/ep
 adv_df <- read.csv(adv_filename, sep = ",")
 
 head(adv_df)
-
+tail(adv_df)
 # get index of advection speed below 0.1 km/h
 adv_speed <- sqrt(adv_df$vx_final^2 + adv_df$vy_final^2)
 
 idx_low_adv <- which(adv_speed > 0 & adv_speed < 0.1)
-
+summary(adv_speed)
 # get index of advection speed below 0.1 km/h and with mean_dx_kmh_comphore and mean_dy_kmh_comephore at 0
 idx_low_speed_adv_comephore <- which(adv_speed > 0 & adv_speed < 0.1 & adv_df$mean_dx_kmh_comephore == 0 & adv_df$mean_dy_kmh_comephore == 0)
 print(paste("Number of episodes with advection speed below 0.1 km/h and comephore advection at 0:", length(idx_low_speed_adv_comephore)))
 total_n_episodes <- nrow(adv_df)
 print(paste("Total number of episodes:", total_n_episodes))
 # put these advections to 0
-adv_df$vx_final[idx_low_speed_adv_comephore] <- 0
-adv_df$vy_final[idx_low_speed_adv_comephore] <- 0
+# adv_df$vx_final[idx_low_speed_adv_comephore] <- 0
+# adv_df$vy_final[idx_low_speed_adv_comephore] <- 0
 
 # get only matching episodes from selected_points
 # convert adv_df$t0 to POSIXct
@@ -164,7 +188,7 @@ selected_points$t0_date <- as.POSIXct(selected_points$t0_date, format="%Y-%m-%d 
 matching_indices <- sapply(selected_points$t0_date, function(t) {
   diffs <- abs(difftime(adv_df$t0_omsev, t, units = "secs"))
   idx <- which.min(diffs)
-  if (diffs[idx] > 60*5) {  # tolérance = 5 minutes
+  if (diffs[idx] > 60*5) {
     return(NA)
   } else {
     return(idx)
@@ -231,7 +255,7 @@ list_episodes_points <- get_extreme_episodes(selected_episodes_nona, rain,
 list_episodes <- list_episodes_points$episodes
 u0_list <- selected_episodes_nona$u_s0
 tmax <- max(tau_vect)
-df_coords <- as.data.frame(grid_coords_km)
+df_coords <- as.data.frame(grid_coords_m) / 1000 # convert to km
 # Compute the lags and excesses for each conditional point
 list_results <- mclapply(1:length(s0_list), function(i) {
   s0 <- s0_list[i]
@@ -259,11 +283,8 @@ sum(df_excesses$kij)
 
 
 # get comephore estimates
-filename_com_res <- paste(data_folder,
-        "comephore/optim_results/euclidean/free_eta/results_com_classes_q95_delta30_dmin5.csv",
-        sep = "")
-com_results <- read.csv(filename_com_res)
-com_results <- c(0.308, 0.602, 0.342, 0.761, 1.621, 5.219)
+com_results <- c(0.2024721, 0.9692695, 0.5312816, 0.661511, 5.355625, 2.135717)
+
 # check for na in adv and wind
 hmax <- max(dist_mat) / 1000
 
@@ -285,23 +306,23 @@ adv_speed <- sqrt(selected_episodes$adv_x^2 +
 
 max(adv_speed)
 # put all adv < speed_threshold to 0
-adv_speed[adv_speed < speed_threshold] <- 0
-selected_episodes$adv_speed <- adv_speed
-selected_episodes$adv_x[adv_speed == 0] <- 0
-selected_episodes$adv_y[adv_speed == 0] <- 0
-filtered <- FALSE
-if (filtered) {
-  selected_episodes_filtered <- selected_episodes[adv_speed >= speed_threshold, ]
-    list_episodes_filtered <- list_episodes[adv_speed > speed_threshold]
-    list_lags_filtered <- list_lags[adv_speed > speed_threshold]
-    list_excesses_filtered <- list_excesses[adv_speed > speed_threshold]
-} else {
+# adv_speed[adv_speed < speed_threshold] <- 0
+# selected_episodes$adv_speed <- adv_speed
+# selected_episodes$adv_x[adv_speed == 0] <- 0
+# selected_episodes$adv_y[adv_speed == 0] <- 0
+# filtered <- FALSE
+# if (filtered) {
+#   selected_episodes_filtered <- selected_episodes[adv_speed >= speed_threshold, ]
+#     list_episodes_filtered <- list_episodes[adv_speed > speed_threshold]
+#     list_lags_filtered <- list_lags[adv_speed > speed_threshold]
+#     list_excesses_filtered <- list_excesses[adv_speed > speed_threshold]
+# } else {
   selected_episodes_filtered <- selected_episodes
     list_episodes_filtered <- list_episodes
     list_lags_filtered <- list_lags
     list_excesses_filtered <- list_excesses
 
-}
+# }
 
 V_episodes_filtered <- data.frame(
     vx = selected_episodes_filtered$adv_x,
@@ -316,7 +337,7 @@ print(paste("Number of episodes after filtering:", number_episode))
 
 # init_com_class <- as.numeric(com_results[2, c("beta1", "beta2", "alpha1", "alpha2", "eta1", "eta2")])
 # init_com_class <- c(0.354, 0.678, 0.334, 0.724, 1.092, 5.666)
-init_com_class <- c(0.308, 0.602, 0.342, 0.761, 1.621, 5.219)
+init_com_class <- com_results
 eta1_class <- init_com_class[5]
 eta2_class <- init_com_class[6]
 head(V_episodes_filtered)
@@ -564,6 +585,185 @@ n_zero_adv <- sum(V_episodes_filtered$vx == 0 & V_episodes_filtered$vy == 0)
 cat("Number of episodes with zero advection after filtering:", n_zero_adv, "\n")
 
 
+
+
+#' plot_th_emp_chi
+#' 
+#' Plot empirical vs theoretical chi values for multiple episodes
+#' @param list_lags list of data frames with lag information for each episode
+#' @param list_excesses list of data frames with excess information for each episode
+#' @param list_adv data frame with advection parameters for each episode
+#' @param params_estimates numeric vector of estimated model parameters
+#' @param tau_min minimum tau value to consider
+#' @param tau_fixed fixed tau value for specific plot
+#' @param h_breaks breaks for h binning
+#' @param latlon logical, whether coordinates are in lat/lon
+#' @param adv_transform logical, whether to apply advection transformation
+#' @return invisible list with results and plots
+#' @export
+plot_th_emp_chi <- function(list_lags,
+                            list_excesses,
+                            list_adv,
+                            params_estimates,
+                            tau_min = 0,
+                            tau_fixed = 0,
+                            h_breaks = seq(0, 10, by = 1),
+                            latlon = FALSE,
+                            adv_transform = TRUE) {
+  stopifnot(
+    length(list_lags) == length(list_excesses),
+    length(list_lags) <= nrow(list_adv)
+  )
+
+  if (!requireNamespace("data.table", quietly = TRUE)) {
+    stop("Package 'data.table' is required.")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' is required.")
+  }
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' is required.")
+  }
+
+  params <- params_estimates
+  eta1 <- params[5]
+  eta2 <- params[6]
+
+  res_list <- vector("list", length(list_lags))
+
+  for (i in seq_along(list_lags)) {
+    lags_i    <- list_lags[[i]]
+    excess_i  <- list_excesses[[i]]
+    adv_x     <- list_adv$vx[i]
+    adv_y     <- list_adv$vy[i]
+
+    if (adv_transform) {
+      adv_norm <- sqrt(adv_x^2 + adv_y^2)
+      adv_norm_transformed <- eta1 * adv_norm^eta2
+      if (adv_norm > 0) {
+        adv_x <- adv_x / adv_norm * adv_norm_transformed
+        adv_y <- adv_y / adv_norm * adv_norm_transformed
+      } else {
+        adv_x <- 0
+        adv_y <- 0
+      }
+    }
+    
+    params_adv <- c(params[1:4], adv_x, adv_y)
+    chi_th_i <- theoretical_chi(
+      params   = params_adv,
+      df_lags  = lags_i,
+      latlon   = latlon
+    )
+
+    res_list[[i]] <- data.table::data.table(
+      episode  = i,
+      s2       = lags_i$s2,
+      tau      = lags_i$tau,
+      h        = lags_i$hnorm,
+      hx      = lags_i$hx,
+      hy      = lags_i$hy,
+      chi_emp  = excess_i$kij,
+      chi_theo = chi_th_i$chi,
+      adv_x    = adv_x,
+      adv_y    = adv_y
+    )
+  }
+
+  res <- data.table::rbindlist(res_list, fill = TRUE)
+  res$hbin <- cut(res$h, breaks = h_breaks, include.lowest = TRUE)
+
+  grouped <- dplyr::group_by(
+    dplyr::filter(res, .data$tau >= tau_min),
+    .data$tau,
+    .data$hbin
+  )
+  res_cmp <- dplyr::summarise(
+    grouped,
+    chi_emp_bar  = mean(.data$chi_emp, na.rm = TRUE),
+    chi_theo_bar = mean(.data$chi_theo, na.rm = TRUE),
+    n_pairs = dplyr::n(),
+    .groups = "drop"
+  )
+
+  res_tau <- dplyr::filter(res_cmp, .data$tau == tau_fixed)
+
+  plot_all <- ggplot2::ggplot(res_cmp, ggplot2::aes(
+    x = .data$chi_theo_bar,
+    y = .data$chi_emp_bar
+  )) +
+    ggplot2::geom_point(alpha = 0.6, color = btfgreen) +
+    ggplot2::geom_abline(
+      slope = 1,
+      intercept = 0,
+      color = "red",
+      linetype = "dashed"
+    ) +
+    ggplot2::labs(
+      title = "Empirical vs Theoretical Chi",
+      x = "Theoretical Chi",
+      y = "Empirical Chi"
+    ) +
+    ggplot2::theme_minimal() +
+    btf_theme
+
+  plot_tau <- ggplot2::ggplot(res_tau, ggplot2::aes(
+    x = .data$chi_theo_bar,
+    y = .data$chi_emp_bar
+  )) +
+    ggplot2::geom_point(alpha = 0.6, color = btfgreen) +
+    ggplot2::geom_abline(
+      slope = 1,
+      intercept = 0,
+      color = "red",
+      linetype = "dashed"
+    ) +
+    ggplot2::labs(
+      title = paste0("Empirical vs Theoretical Chi (tau = ", tau_fixed, ")"),
+      x = "Theoretical Chi",
+      y = "Empirical Chi"
+    ) +
+    ggplot2::theme_minimal() +
+    btf_theme
+
+  invisible(list(
+    res = res,
+    res_cmp = res_cmp,
+    res_tau = res_tau,
+    plots = list(all = plot_all, tau = plot_tau)
+  ))
+}
+
+
+
+compute_group_chi <- function(list_lags,
+                              list_excesses,
+                              wind_df,
+                              params,
+                              tau_min = 0,
+                              tau_fixed = 0,
+                              h_breaks = seq(0, 10, by = 1),
+                              latlon = FALSE,
+                              adv_transform = TRUE) {
+  plot_th_emp_chi(
+    list_lags = list_lags,
+    list_excesses = list_excesses,
+    list_adv = wind_df,
+    params_estimates = params,
+    tau_min = tau_min,
+    tau_fixed = tau_fixed,
+    h_breaks = h_breaks,
+    latlon = latlon,
+    adv_transform = adv_transform
+  )
+}
+
+summary_correlation <- function(res_cmp) {
+  cor(res_cmp$chi_emp_bar, res_cmp$chi_theo_bar,
+      use = "complete.obs", method = "spearman")
+}
+
+
 omsev_params <- params_est
 
 dist_mat <- get_dist_mat(location_gauges) / 1000
@@ -580,6 +780,7 @@ h_breaks_omsev <- quantile(
 
 h_breaks_omsev <- unique(as.numeric(h_breaks_omsev))
 h_breaks_omsev[length(h_breaks_omsev)] <- 1.6
+
 
 chi_omsev <- compute_group_chi(
   list_lags = list_lags_filtered,
@@ -604,9 +805,13 @@ ggplot(res_om_cmp, aes(x = chi_theo_bar, y = chi_emp_bar, size = n_pairs)) +
   geom_abline(linetype = "dashed", color = "red") +
   theme_bw() +
   scale_size_continuous(range = c(1, 4)) +
-  labs(x = "Theoretical Chi", y = "Empirical Chi",
+  labs(x = TeX("$\\chi$ Theoretical"),
+   y = TeX("$\\chi$ Empirical"),
       size = "Number of pairs") +
-  btf_theme
+  btf_theme +
+  # bigger legend
+  theme(legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14))
 
 # save plot
 foldername <- paste0(im_folder, "workflows/full_pipeline/")

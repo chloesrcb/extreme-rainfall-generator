@@ -17,17 +17,23 @@ library(sf)
 library(units)
 library(ggspatial)  
 
+functions_folder <- "../../../generain/R"
+files <- list.files(functions_folder, full.names = TRUE)
+# load all functions in files
+invisible(lapply(files, function(f) source(f, echo = FALSE)))
+library(latex2exp)
+
 ################################################################################
 # DATA AND COORDS
 ################################################################################
 
 # get rain data
-filename_rain <- paste0(data_folder, "omsev/omsev_5min/rain_mtp_5min_2019_2024_cleaned.csv")
+filename_rain <- paste0(data_folder, "omsev/omsev_5min/rain_mtp_5min_2019_2025_python.csv")
 rain_omsev <- read.csv(filename_rain)
 head(rain_omsev)
 
 # egpd fit
-filename_egpd <- paste0(data_folder, "../thesis/resources/images/EGPD/OMSEV/2019_2024/egpd_results.csv")
+filename_egpd <- paste0(data_folder, "../thesis/resources/images/EGPD/OMSEV/2019_2025/egpd_results.csv")
 egpd_params <- read.csv(filename_egpd)
 
 # put dates as rownames
@@ -46,11 +52,14 @@ rain <- rain[, !(colnames(rain) %in% c("cines", "hydro", "brives"))]
 location_gauges <- location_gauges[location_gauges$Station != "cines" &
                                    location_gauges$Station != "hydro" &
                                    location_gauges$Station != "brives", ]
+
+sites_names <- colnames(rain)
+location_gauges <- location_gauges[match(sites_names, location_gauges$Station), ]
+stopifnot(all(location_gauges$Station == sites_names))
+
 dist_mat <- get_dist_mat(location_gauges)
 df_dist <- reshape_distances(dist_mat)
 
-
-sites_names <- colnames(rain)
 sites_coords <- location_gauges[, c("Longitude", "Latitude")]
 
 rownames(sites_coords) <- location_gauges$Station
@@ -72,6 +81,7 @@ grid_coords_m <- grid_coords_m[, c("x_m", "y_m")]
 grid_coords_km <- grid_coords_km[, c("x_km", "y_km")]
 colnames(grid_coords_m) <- c("Longitude", "Latitude")
 colnames(grid_coords_km) <- c("Longitude", "Latitude")
+
 dist_mat <- get_dist_mat(grid_coords_m, latlon = FALSE)
 
 # Spatial chi
@@ -79,8 +89,8 @@ df_dist <- reshape_distances(dist_mat)
 df_dist_km <- df_dist
 df_dist_km$value <- df_dist$value / 1000
 
-stopifnot(nrow(grid_coords_m) == ncol(rain))
-rownames(grid_coords_m) <- colnames(rain)
+
+
 
 ################################################################################
 ## Marginal parameters
@@ -104,7 +114,6 @@ params_margins <- list(
 #################################################################################
 # GET EPISODES
 #################################################################################
-
 q <- 0.95
 delta <- 12
 dmin <- 1200  # m
@@ -167,7 +176,8 @@ sum(df_excesses$kij)
 # VARIOS PARAMETERS FROM KM/H TO M/5MIN
 ###################################################################################
 # From results
-params_est <- c(1.090, 4.628, 0.225, 0.713, 1.621, 5.219)  # km/h
+# params_est <- c(1.090, 4.628, 0.225, 0.713, 1.621, 5.219)  # km/h
+params_est <- c(1.2754053, 3.6667252, 0.3598625, 0.6831353, 5.3556250, 2.1357170)
 etas_estimates <- params_est[5:6]
 
 params_kmh <- list(
@@ -425,6 +435,7 @@ df_real_summary <- df_real_group %>%
   summarise(
     real_mean = mean(rainfall),
     real_median = median(rainfall),
+    real_sd  = sd(rainfall),
     real_low  = quantile(rainfall, 0.025),
     real_high = quantile(rainfall, 0.975)
   )
@@ -814,7 +825,7 @@ pixel_ids <- rownames(grid_df)
 s0_pixel_id <- sample(pixel_ids, 1)
 
 u_emp <- mean(u_list)
-adv <- c(-1, 2)
+adv <- c(-0.1, 0.5)
 sim_episode <- sim_episode_grid(
   params_vario = params_kmh,
   params_margins_common = params_margins_common,
@@ -836,7 +847,7 @@ grid_latlon_poly <- st_transform(grid_latlon_poly, 4326)
 sites_sf <- st_transform(sites_sf, 4326)
 fill_limits <- range(sim_episode, na.rm = TRUE)
 
-episode_idx <- 1
+episode_idx <- "new"
 dir_frames <- file.path(im_folder, paste0("swg/omsev/frames_episode_", episode_idx))
 dir.create(dir_frames, recursive = TRUE, showWarnings = FALSE)
 
@@ -853,11 +864,15 @@ cent_df <- data.frame(
 vx <- adv[1]
 vy <- adv[2]
 
+s0_poly <- grid_latlon_poly %>%
+    filter(pixel_id == s0_pixel_id)
+
 dt_arrow_hours <- 5/60 # 5 minutes in hours
 scale_extra <- 1 # to adjust arrow length
 dx_m <- vx * dt_arrow_hours * 1000 * scale_extra
 dy_m <- vy * dt_arrow_hours * 1000 * scale_extra
 
+nT <- ncol(sim_episode)
 for (tt in seq_len(nT)) {
 
   df_t <- data.frame(
@@ -895,6 +910,7 @@ for (tt in seq_len(nT)) {
     bary_pt_4326 <- NULL
   }
 
+  
   p <- ggplot() +
     geom_sf(data = map_t, aes(fill = rain), color = NA) +
     geom_sf(data = s0_poly, fill = NA, color = "white", linewidth = 1.2) +
