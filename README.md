@@ -20,7 +20,7 @@ The model used combines:
 
 - **EGPD marginals** for modeling extreme rainfall intensities  
 - A flexible extremal dependence structure based on **r-Pareto processes**
--  **Advection** incorporation to account for rain storm displacement
+- **Advection** incorporation to account for rain storm displacement
 
 The model is calibrated on high spatio-temporal resolution data from the Montpellier **OMSEV** precipitation network and also the **COMEPHORE** reanalysis provided by Météo-France.
 
@@ -28,7 +28,7 @@ The model is calibrated on high spatio-temporal resolution data from the Montpel
 
 The code is organized as follows:
 
- ```
+```
  script/
     ├── advection/
     │    └── Code to compute advection vectors
