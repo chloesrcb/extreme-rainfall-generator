@@ -20,13 +20,6 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(forcats)
-
-
-# Get all files in the folder "R"
-functions_folder <- "./R"
-files <- list.files(functions_folder, full.names = TRUE)
-# load all functions in files
-invisible(lapply(files, function(f) source(f, echo = FALSE)))
 library(latex2exp)
 
 ################################################################################
