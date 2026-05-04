@@ -94,7 +94,7 @@ format_value <- function(x) {
   return(paste(formatted_values, collapse = "_"))
 }
 param_str <- format_value(true_param)
-# adv_str <- format_value(adv)result_folder
+# adv_str <- format_value(adv)
 s0_str <- format_value(s0)
 t0_str <- format_value(t0)
 
