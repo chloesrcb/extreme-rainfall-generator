@@ -9,7 +9,7 @@ This repository contains the code associated with the paper:
 Available at [arXiv.2602.19774](https://arxiv.org/abs/2602.19774)
 
 <p align="center">
-  <img src="./images/simulations/simulated_episode.gif" width="300"><br>
+  <img src="./images/simulations/output.gif" width="300"><br>
   <em>Simulated extreme rainfall episode using the proposed spatio-temporal model.</em>
 </p>
 

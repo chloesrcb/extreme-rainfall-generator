@@ -151,7 +151,6 @@ u_emp <- 1
 nT <- 12
 steps <- 0:(nT - 1)
 
-# grid_df assumed initially in lon/lat
 grid_pts_l93 <- st_as_sf(grid_df, coords = c("Longitude", "Latitude"), crs = 4326) %>%
   st_transform(2154)
 
